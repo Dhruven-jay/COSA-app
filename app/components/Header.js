@@ -17,11 +17,17 @@ export default function Header() {
     setIsMenuOpen(!isMenuOpen);
   };
 
-  const handleLogout = () => {
-    logout();
-    showSuccess('You have been logged out successfully');
-    router.push('/');
-    setIsMenuOpen(false);
+  const handleLogout = async () => {
+    try {
+      await logout();
+      showSuccess('You have been logged out successfully');
+      setIsMenuOpen(false);
+      
+      // Use window.location for a full page reload to ensure clean logout
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   return (
@@ -65,6 +71,12 @@ export default function Header() {
                 </li>
                 <li className={styles.navItem}>
                   <Link href="/admin/reports" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>Reports</Link>
+                </li>
+                <li className={styles.navItem}>
+                  <Link href="/admin/assignments" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>Assignments</Link>
+                </li>
+                <li className={styles.navItem}>
+                  <Link href="/admin/evaluations" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>Evaluations</Link>
                 </li>
                 <li className={styles.navItem}>
                   <button onClick={handleLogout} className={styles.logoutButton}>Logout</button>

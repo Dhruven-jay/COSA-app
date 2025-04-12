@@ -108,6 +108,22 @@ CREATE TABLE evaluations (
   evaluation_url TEXT -- For PDF uploads
 );
 
+-- Create employer evaluation forms table for detailed evaluations
+CREATE TABLE employer_evaluation_forms (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  employer_id UUID REFERENCES profiles(id) NOT NULL,
+  student_name TEXT NOT NULL,
+  student_email TEXT NOT NULL,
+  work_term TEXT NOT NULL,
+  knowledge INTEGER NOT NULL CHECK (knowledge BETWEEN 1 AND 5),
+  skills INTEGER NOT NULL CHECK (skills BETWEEN 1 AND 5),
+  behaviour INTEGER NOT NULL CHECK (behaviour BETWEEN 1 AND 5),
+  attitude INTEGER NOT NULL CHECK (attitude BETWEEN 1 AND 5),
+  comments TEXT,
+  submission_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  evaluation_id UUID REFERENCES evaluations(id)
+);
+
 -- Create Row Level Security (RLS) policies
 
 -- Profiles RLS: Users can see and edit only their own profiles
@@ -202,6 +218,41 @@ CREATE POLICY "Students can view own evaluations"
 -- Admins can view all evaluations
 CREATE POLICY "Admins can view all evaluations" 
   ON evaluations FOR SELECT 
+  USING (auth.uid() IN (
+    SELECT id FROM profiles WHERE role = 'admin'
+  ));
+
+-- Employer Evaluation Forms RLS
+ALTER TABLE employer_evaluation_forms ENABLE ROW LEVEL SECURITY;
+
+-- Employers can view and create their own evaluation forms
+CREATE POLICY "Employers can view own evaluation forms" 
+  ON employer_evaluation_forms FOR SELECT 
+  USING (auth.uid() = employer_id);
+
+CREATE POLICY "Employers can create evaluation forms" 
+  ON employer_evaluation_forms FOR INSERT 
+  WITH CHECK (auth.uid() = employer_id);
+
+CREATE POLICY "Employers can update own evaluation forms" 
+  ON employer_evaluation_forms FOR UPDATE 
+  USING (auth.uid() = employer_id);
+
+-- Students can view evaluations about themselves
+CREATE POLICY "Students can view own evaluation forms" 
+  ON employer_evaluation_forms FOR SELECT 
+  USING (auth.uid() = student_id);
+
+-- Admins can view all evaluation forms
+CREATE POLICY "Admins can view all evaluation forms" 
+  ON employer_evaluation_forms FOR SELECT 
+  USING (auth.uid() IN (
+    SELECT id FROM profiles WHERE role = 'admin'
+  ));
+
+-- Admins can update evaluation forms status
+CREATE POLICY "Admins can update evaluation forms" 
+  ON employer_evaluation_forms FOR UPDATE 
   USING (auth.uid() IN (
     SELECT id FROM profiles WHERE role = 'admin'
   ));

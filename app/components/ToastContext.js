@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useState, useContext, useCallback } from 'react';
+import { createContext, useState, useContext, useCallback, useRef } from 'react';
 import styles from './ToastContext.module.css';
 
 // Create the toast context
@@ -8,22 +8,25 @@ const ToastContext = createContext();
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
+  const toastCounter = useRef(0);
 
-  // Add a new toast
+  // Add a new toast with unique ID generation
   const addToast = useCallback((message, type = 'info', duration = 5000) => {
-    const id = Date.now();
+    // Create a truly unique ID using timestamp and counter
+    const timestamp = Date.now();
+    const uniqueId = `${timestamp}-${toastCounter.current++}`;
     
     setToasts(prevToasts => [
       ...prevToasts,
-      { id, message, type, duration }
+      { id: uniqueId, message, type, duration }
     ]);
     
     // Auto-remove toast after duration
     setTimeout(() => {
-      removeToast(id);
+      removeToast(uniqueId);
     }, duration);
     
-    return id;
+    return uniqueId;
   }, []);
 
   // Remove a toast by ID

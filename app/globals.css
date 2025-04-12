@@ -229,7 +229,7 @@ code {
   padding: 0.75rem;
   font-size: 1rem;
   line-height: 1.5;
-  color: #000000 !important; /* Enforced dark text color for light mode */
+  color: #0066cc !important; /* Changed to blue text color for better visibility in light mode */
   font-weight: 500; /* Slightly bolder text */
   background-color: #fff;
   background-clip: padding-box;
@@ -296,7 +296,7 @@ code {
   }
   
   .form-control {
-    color: #ffffff !important; /* Enforced light text color for dark mode */
+    color: #66ccff !important; /* Changed to light blue text color for better visibility in dark mode */
     background-color: var(--gray-700);
     border-color: var(--gray-600);
   }

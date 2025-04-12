@@ -233,7 +233,7 @@
 .signupForm input[type="email"],
 .signupForm input[type="password"],
 .signupForm select {
-  color: #000000 !important; /* Dark text for light mode */
+  color: #0066cc !important; /* Blue text for light mode */
   font-weight: 500;
 }
 
@@ -254,7 +254,7 @@
   .signupForm input[type="email"],
   .signupForm input[type="password"],
   .signupForm select {
-    color: #ffffff !important; /* Light text for dark mode */
+    color: #66ccff !important; /* Light blue text for dark mode */
     font-weight: 500;
   }
 } 

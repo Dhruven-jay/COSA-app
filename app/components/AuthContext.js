@@ -6,8 +6,10 @@ import {
   signIn, 
   signUp, 
   signOut, 
-  getCurrentUser 
+  getCurrentUser,
+  getCurrentSession 
 } from '../../lib/supabase';
+import { useRouter } from 'next/navigation';
 
 // Create the authentication context
 const AuthContext = createContext();
@@ -16,71 +18,152 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const router = useRouter();
 
   // Check authentication status on mount
   useEffect(() => {
+    let isMounted = true;
+    let hasCheckedAuth = false; // Flag to prevent multiple auth checks
+    
     const checkAuthStatus = async () => {
+      if (!isMounted || hasCheckedAuth) return;
+      
       setIsLoading(true);
       try {
+        console.log("Checking authentication status...");
+        hasCheckedAuth = true; // Set flag to prevent multiple checks
+        
+        // Get the user directly
         const currentUser = await getCurrentUser();
         
-        if (currentUser) {
-          // Fetch the user profile data from the profiles table
-          const { data: profileData, error: profileError } = await supabase
+        if (!currentUser) {
+          console.log("No authenticated user found");
+          if (isMounted) {
+            setUser(null);
+            setIsLoading(false);
+            setIsInitialized(true);
+          }
+          return;
+        }
+        
+        console.log("User authenticated:", currentUser.email);
+        
+        // Check if user is an admin based on metadata first
+        const isAdminFromMetadata = 
+          currentUser.user_metadata?.role === 'admin' || 
+          currentUser.app_metadata?.role === 'admin';
+        
+        if (isAdminFromMetadata) {
+          // Set admin mode in localStorage
+          localStorage.setItem('admin_mode', 'true');
+        }
+        
+        // Try to fetch the user profile data from the profiles table
+        let profileData = null;
+        try {
+          console.log("Fetching profile data for user:", currentUser.id);
+          
+          const { data, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', currentUser.id)
-            .single();
+            .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no profile exists
             
-          if (profileError) {
-            console.error('Error fetching profile:', profileError);
+          if (!error && data) {
+            profileData = data;
+            console.log("Profile data retrieved successfully");
+          } else if (error && error.code !== 'PGRST116') { // Ignore "no rows returned" error
+            console.warn('Could not fetch profile data, using metadata:', error);
+          } else {
+            console.log("No profile data found, will use auth metadata");
           }
-          
-          // Combine auth data with profile data
-          const userData = {
-            id: currentUser.id,
-            email: currentUser.email,
-            role: profileData?.role || currentUser.user_metadata.role,
-            firstName: profileData?.first_name || currentUser.user_metadata.firstName,
-            lastName: profileData?.last_name || currentUser.user_metadata.lastName,
-            // Add role-specific fields
-            ...(profileData?.role === 'student' && { studentId: profileData.student_id }),
-            ...(profileData?.role === 'employer' && { 
-              companyName: profileData.company_name,
-              companyPosition: profileData.company_position
-            }),
-          };
-          
+        } catch (profileError) {
+          console.error('Error in profile fetch:', profileError);
+          // Continue with authentication despite profile fetch error
+        }
+        
+        // Get role from various sources, prioritizing metadata for admin
+        const role = isAdminFromMetadata 
+          ? 'admin' 
+          : (profileData?.role || currentUser.user_metadata?.role || 'student');
+        
+        console.log("User role determined:", role);
+        
+        // Combine auth data with profile data
+        const userData = {
+          id: currentUser.id,
+          email: currentUser.email,
+          role: role,
+          firstName: profileData?.first_name || currentUser.user_metadata?.firstName || '',
+          lastName: profileData?.last_name || currentUser.user_metadata?.lastName || '',
+          // Add role-specific fields
+          ...(profileData?.role === 'student' && { studentId: profileData.student_id }),
+          ...(profileData?.role === 'employer' && { 
+            companyName: profileData.company_name,
+            companyPosition: profileData.company_position
+          }),
+        };
+        
+        // If the role is admin, enable admin mode flag
+        if (role === 'admin') {
+          localStorage.setItem('admin_mode', 'true');
+        }
+        
+        console.log("Setting authenticated user in context");
+        if (isMounted) {
           setUser(userData);
+          setIsLoading(false);
+          setIsInitialized(true);
         }
       } catch (err) {
         console.error('Authentication check failed:', err);
-        setError('Authentication failed. Please log in again.');
-      } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          // Don't set error for 'Auth session missing' as it's a normal state
+          if (err.message !== 'Auth session missing!') {
+            setError('Authentication failed. Please log in again.');
+          }
+          // Clear admin mode if auth check fails
+          localStorage.removeItem('admin_mode');
+          // Clear user state on authentication error
+          setUser(null);
+          setIsLoading(false);
+          setIsInitialized(true);
+        }
       }
     };
 
-    // Set up auth state listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+    // One-time auth check at start
+    checkAuthStatus();
+    
+    // Set up a simpler auth listener with debounced checks to prevent loops
+    const handleAuthChange = (event, session) => {
+      console.log("Auth state changed:", event, session ? "Has session" : "No session");
+      
+      if (event === 'SIGNED_OUT') {
+        // Handle sign out immediately
+        localStorage.removeItem('admin_mode');
+        setUser(null);
+        setIsInitialized(true);
+        setIsLoading(false);
+        hasCheckedAuth = false; // Reset flag to allow checking again after sign-out
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // For sign in, only check if we haven't checked yet
+        if (!hasCheckedAuth) {
           checkAuthStatus();
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
         }
       }
-    );
+    };
+    
+    const { data: authListener } = supabase.auth.onAuthStateChange(handleAuthChange);
 
-    checkAuthStatus();
-
-    // Clean up subscription on unmount
     return () => {
+      isMounted = false;
       if (authListener && authListener.subscription) {
         authListener.subscription.unsubscribe();
       }
     };
-  }, []);
+  }, [router]);
 
   // Login function
   const login = async (email, password, rememberMe = false) => {
@@ -88,42 +171,20 @@ export function AuthProvider({ children }) {
     setError(null);
     
     try {
-      const { user: authUser, session } = await signIn(email, password);
+      // Call the signIn function
+      const data = await signIn(email, password);
       
-      if (!authUser) throw new Error('Authentication failed');
-      
-      // Fetch the user profile data
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .single();
-        
-      if (profileError && profileError.code !== 'PGRST116') {
-        // If error is not "no rows returned", then it's a real error
-        console.error('Error fetching profile:', profileError);
+      if (!data || !data.user) {
+        throw new Error('Authentication failed');
       }
       
-      // Combine auth data with profile data
-      const userData = {
-        id: authUser.id,
-        email: authUser.email,
-        role: profileData?.role || authUser.user_metadata.role,
-        firstName: profileData?.first_name || authUser.user_metadata.firstName,
-        lastName: profileData?.last_name || authUser.user_metadata.lastName,
-        // Add role-specific fields
-        ...(profileData?.role === 'student' && { studentId: profileData.student_id }),
-        ...(profileData?.role === 'employer' && { 
-          companyName: profileData.company_name,
-          companyPosition: profileData.company_position
-        }),
-      };
-      
-      setUser(userData);
-      return userData;
+      // Return the complete data object so the login page can access everything
+      return data;
     } catch (err) {
       console.error('Login error:', err);
       setError('Login failed. Please check your credentials and try again.');
+      // Clear admin mode if login fails
+      localStorage.removeItem('admin_mode');
       throw err;
     } finally {
       setIsLoading(false);
@@ -204,12 +265,19 @@ export function AuthProvider({ children }) {
 
   // Logout function
   const logout = async () => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
       await signOut();
       setUser(null);
+      // Clear admin mode on logout
+      localStorage.removeItem('admin_mode');
     } catch (err) {
       console.error('Logout error:', err);
       setError('Logout failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -217,6 +285,7 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     isLoading,
+    isInitialized,
     isAuthenticated: !!user,
     userRole: user?.role || null,
     error,

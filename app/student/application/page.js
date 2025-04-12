@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import MainLayout from '../../components/MainLayout';
 import { useAuth } from '../../components/AuthContext';
 import { useToast } from '../../components/ToastContext';
 import styles from './application.module.css';
+import { supabase } from '../../../lib/supabase';
+import { uploadResume, checkRequiredBuckets } from '../../../lib/api/upload';
 
 export default function StudentApplication() {
   const router = useRouter();
@@ -37,12 +39,23 @@ export default function StudentApplication() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   
-  // Redirect to login if not authenticated
-  useState(() => {
+  // Redirect to login if not authenticated and check buckets
+  useEffect(() => {
     if (!isAuthenticated) {
       showInfo('Please log in to submit an application');
       router.push('/auth/login');
+      return;
     }
+    
+    // Check if required buckets exist
+    const checkBuckets = async () => {
+      const bucketsExist = await checkRequiredBuckets();
+      if (!bucketsExist) {
+        showInfo('System is being set up. Some features may be limited.');
+      }
+    };
+    
+    checkBuckets();
   }, [isAuthenticated, router, showInfo]);
 
   const handleChange = (e) => {
@@ -172,20 +185,42 @@ export default function StudentApplication() {
     setIsSubmitting(true);
     
     try {
-      // API call would go here
-      // For now, we'll simulate a successful submission
+      console.log('Starting application submission...');
       
-      // Note for backend developer:
-      // Implement API endpoint for student application submission:
-      // - POST /api/applications/submit
-      // - Request body should include application data as FormData (to handle file upload)
-      // - Application should be stored in database with 'pending' status
-      // - Return application ID and confirmation on success
+      // First upload the resume if provided
+      let resumeUrl = 'https://example.com/placeholder-resume.pdf'; // Default placeholder
       
-      console.log('Application data:', formData);
+      if (formData.resumeFile) {
+        try {
+          console.log('Uploading resume...');
+          resumeUrl = await uploadResume(formData.resumeFile, user.id);
+          console.log('Resume uploaded successfully:', resumeUrl);
+        } catch (uploadError) {
+          console.error('Resume upload error:', uploadError);
+          throw new Error(`Failed to upload resume: ${uploadError.message}`);
+        }
+      }
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Now insert the application with the real or placeholder resume URL
+      const { error: insertError } = await supabase
+        .from('applications')
+        .insert({
+          student_id: user.id,
+          status: 'pending',
+          submission_date: new Date().toISOString(),
+          resume_url: resumeUrl,
+          major: formData.program,
+          gpa: parseFloat(formData.gpa),
+          expected_graduation: formData.expectedGraduation + '-01',
+          comments: formData.relevantExperience,
+        });
+      
+      if (insertError) {
+        console.error('Database insert error:', insertError);
+        throw new Error(`Failed to insert application record: ${insertError.message}`);
+      }
+      
+      console.log('Application record inserted successfully');
       
       // Show success toast
       showSuccess('Your application has been submitted successfully!');
@@ -199,7 +234,7 @@ export default function StudentApplication() {
     } catch (error) {
       console.error('Application submission error:', error);
       showError('There was a problem submitting your application. Please try again.');
-      setErrors({ form: 'There was a problem submitting your application. Please try again.' });
+      setErrors({ form: `Submission error: ${error.message}` });
       window.scrollTo(0, 0);
     } finally {
       setIsSubmitting(false);

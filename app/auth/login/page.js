@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import MainLayout from '../../components/MainLayout';
 import { useAuth } from '../../components/AuthContext';
 import { useToast } from '../../components/ToastContext';
+import { redirectToDashboard } from '../../../lib/auth-helpers';
 import styles from './login.module.css';
 
 export default function Login() {
   const router = useRouter();
-  const { login, isLoading, isAuthenticated } = useAuth();
+  const pathname = usePathname();
+  const { login, isLoading, isAuthenticated, user } = useAuth();
   const { showSuccess, showError, showInfo } = useToast();
   
   const [formData, setFormData] = useState({
@@ -35,19 +37,19 @@ export default function Login() {
     return () => darkModeQuery.removeEventListener('change', handler);
   }, []);
 
-  // Input text color style based on dark mode
-  const inputTextStyle = {
-    color: isDarkMode ? '#ffffff' : '#000000',
-    fontWeight: 'bold'
-  };
-
-  // Redirect if already logged in
+  // Simplify the login flow
   useEffect(() => {
-    if (isAuthenticated) {
-      showInfo('You are already logged in');
-      router.push('/');
+    // Clean slate - no redirects from login page
+    if (typeof window !== 'undefined') {
+      console.log('Login page loaded');
     }
-  }, [isAuthenticated, router, showInfo]);
+    
+    // If already authenticated, redirect to homepage
+    if (isAuthenticated && user) {
+      console.log('User already authenticated, redirecting to homepage');
+      router.replace('/');
+    }
+  }, [isAuthenticated, user, router]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -101,6 +103,7 @@ export default function Login() {
     return newErrors;
   };
 
+  // Handle login form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -125,25 +128,29 @@ export default function Login() {
     }
     
     try {
-      const user = await login(formData.email, formData.password, formData.rememberMe);
+      // Login and get user data
+      const data = await login(formData.email, formData.password, formData.rememberMe);
       
-      showSuccess(`Welcome back, ${user.firstName}!`);
-      
-      // Redirect based on role
-      if (user.role === 'student') {
-        router.push('/student/dashboard');
-      } else if (user.role === 'employer') {
-        router.push('/employer/dashboard');
-      } else if (user.role === 'admin') {
-        router.push('/admin/dashboard');
-      } else {
-        router.push('/');
+      if (!data || !data.user) {
+        throw new Error('Login failed - no user data returned');
       }
       
+      // Get user role from metadata
+      const user = data.user;
+      const role = user.user_metadata?.role || 'student';
+      
+      // Display success message
+      const firstName = user.user_metadata?.firstName || user.email.split('@')[0] || 'User';
+      showSuccess(`Welcome back, ${firstName}!`);
+      
+      // Navigate to the appropriate dashboard based on role
+      const dashboardPath = `/${role}/dashboard`;
+      console.log(`Login successful. Redirecting to ${dashboardPath}`);
+      window.location.href = `${dashboardPath}?noredirect=true`;
     } catch (error) {
       console.error('Login error:', error);
       
-      // Show appropriate error message based on error type
+      // Show appropriate error message
       const errorMessage = error.message || 'Invalid email or password. Please try again.';
       showError(errorMessage);
       setErrors({ form: errorMessage });
@@ -181,7 +188,6 @@ export default function Login() {
                 placeholder="Enter your email"
                 disabled={isLoading}
                 autoFocus
-                style={inputTextStyle}
               />
               {errors.email && touched.email && <div className={styles.errorText}>{errors.email}</div>}
             </div>
@@ -203,7 +209,6 @@ export default function Login() {
                 onBlur={handleBlur}
                 placeholder="Enter your password"
                 disabled={isLoading}
-                style={inputTextStyle}
               />
               {errors.password && touched.password && <div className={styles.errorText}>{errors.password}</div>}
             </div>

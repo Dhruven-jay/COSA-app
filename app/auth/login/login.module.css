@@ -188,7 +188,7 @@
 
 .loginForm input[type="email"],
 .loginForm input[type="password"] {
-  color: #000000 !important; /* Dark text for light mode */
+  color: #0066cc !important; /* Blue text for light mode */
   font-weight: 500;
 }
 
@@ -208,7 +208,7 @@
   
   .loginForm input[type="email"],
   .loginForm input[type="password"] {
-    color: #ffffff !important; /* Light text for dark mode */
+    color: #66ccff !important; /* Light blue text for dark mode */
     font-weight: 500;
   }
 }
