@@ -1,6 +1,16 @@
 # COSA - Co-op Support Application (Frontend)
 
-This is the frontend repository for COSA, a comprehensive application designed to streamline the co-op program application and reporting process. This application allows students to apply for provisional acceptance to the co-op program, and later submit their work term reports. It also allows employers to provide evaluations for students who have completed work terms.
+COSA is a full-stack web application designed to streamline the co-op program process across three key stakeholders: students, employers, and co-op coordinators. Built with Next.js and powered by Supabase, COSA supports everything from application submission and report uploads to employer evaluations and administrative review.
+
+It's Live At: https://coop-support-application.vercel.app/
+
+Contributors:
+Maitreyee Das Urmi
+Kent Romio
+Dhruven Jayswal
+Armin Farzanehnia
+Nathan Chandra
+Wilbert Chang
 
 ## Table of Contents
 
@@ -12,8 +22,7 @@ This is the frontend repository for COSA, a comprehensive application designed t
 6. [API Integration Points](#api-integration-points)
 7. [Authentication](#authentication)
 8. [File Upload](#file-upload)
-9. [Deployment](#deployment)
-
+   
 ## Project Structure
 
 The project follows a modular approach with the Next.js App Router structure:
@@ -145,12 +154,8 @@ Files are stored securely in appropriate Supabase Storage buckets.
 
 ## Deployment
 
-This Next.js application can be deployed using:
+This Next.js application is deployed on : Vercel 
 
-- Vercel (recommended)
-- Netlify
-- AWS Amplify
-- Any other platform supporting Next.js
 
 ## Development Notes
 
