@@ -5,9 +5,9 @@ COSA is a full-stack web application designed to streamline the co-op program pr
 It's Live At: https://coop-support-application.vercel.app/
 
 Contributors:
-Dhruven Jayswal
-Maitreyee Das Urmi
-Kent Romio
+Dhruven Jayswal,
+Maitreyee Das Urmi,
+Kent Romio,
 Wilbert Chang
 
 ## Table of Contents
